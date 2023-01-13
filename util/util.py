@@ -38,6 +38,49 @@ def compute_errors(gt, pred):
     
     return abs_rel, rmse, a1, a2, a3, log_10, mae
 
+
+def compute_region_errors(gt, pred, minr=0, maxr=1.0):
+    """Computation of error metrics between predicted and ground truth depths
+    """
+    # select only the values that are greater than zero
+    mask_zero = gt > 0
+    mask_min = gt > minr
+    mask_max = gt < maxr
+    mask = mask_min & mask_max & mask_zero
+    print(mask)
+    pred = pred[mask]
+    gt = gt[mask]
+    print(gt)
+
+    thresh = np.maximum((gt / pred), (pred / gt))
+    a1 = (thresh < 1.25     ).mean()
+    a2 = (thresh < 1.25 ** 2).mean()
+    a3 = (thresh < 1.25 ** 3).mean()
+
+    rmse = (gt - pred) ** 2
+    rmse = np.sqrt(rmse.mean())
+    if rmse != rmse:
+        rmse = 0.0
+    if a1 != a1:
+        a1=0.0
+    if a2 != a2:
+        a2=0.0
+    if a3 != a3:
+        a3=0.0
+    
+    abs_rel = np.mean(np.abs(gt - pred) / gt)
+    log_10 = (np.abs(np.log10(gt)-np.log10(pred))).mean()
+    mae = (np.abs(gt-pred)).mean()
+    if abs_rel != abs_rel:
+        abs_rel=0.0
+    if log_10 != log_10:
+        log_10=0.0
+    if mae != mae:
+        mae=0.0
+    
+    return abs_rel, rmse, a1, a2, a3, log_10, mae
+
+
 class TextWrite(object):
     ''' Wrting the values to a text file 
     '''

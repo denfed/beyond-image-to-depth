@@ -3,9 +3,54 @@ import torchvision
 import torch.nn as nn
 from collections import OrderedDict
 from .networks import RGBDepthNet, weights_init, \
-    SimpleAudioDepthNet, attentionNet, MaterialPropertyNet
+    SimpleAudioDepthNet, attentionNet, MaterialPropertyNet, \
+    WaveformAudioDepthNet, Simple5LayerAudioDepthNet, AudioVisualPyramidAttention, \
+    AudioVisualPyramidAttentionAudioDepth, PyramidattentionNet, SemanticPyramid, \
+    SimpleAudioMultiviewDepthNet, SimpleAudioMultiviewFeatDepthNet
 
 class ModelBuilder():
+    def build_pyramid(self, audio_shape=[2,257,121]):
+        net = AudioVisualPyramidAttention(audio_conv1x1_dim=64,
+                                          audio_shape=audio_shape,
+                                          audio_feature_length=512,
+                                          visual_ngf=64,
+                                          visual_input_nc=3,
+                                          output_nc=1)
+        net.apply(weights_init)
+
+        return net
+
+    def build_pyramid_audiodepth(self, audio_shape=[2,257,121]):
+        net = AudioVisualPyramidAttentionAudioDepth(audio_conv1x1_dim=64,
+                                          audio_shape=audio_shape,
+                                          audio_feature_length=512,
+                                          visual_ngf=64,
+                                          visual_input_nc=3,
+                                          output_nc=1)
+        net.apply(weights_init)
+
+        return net
+
+    def build_pyramid_attention(self):
+        net = PyramidattentionNet(att_out_nc=512, input_nc=512)
+
+        net.apply(weights_init)
+
+        return net
+
+    def build_semanticpyramid(self, audio_shape=[2,257,121]):
+        """Multi-task semantic segmentation + depth network"""
+        net = SemanticPyramid(audio_conv1x1_dim=64,
+                                          audio_shape=audio_shape,
+                                          audio_feature_length=512,
+                                          visual_ngf=64,
+                                          visual_input_nc=3,
+                                          output_nc=1)
+
+        net.apply(weights_init)
+
+        return net
+
     # builder for audio stream
     def build_audiodepth(self, audio_shape=[2,257,121], weights=''):
         net = SimpleAudioDepthNet(8, audio_shape=audio_shape, audio_feature_length=512)
@@ -14,6 +59,44 @@ class ModelBuilder():
             print('Loading weights for audio stream')
             net.load_state_dict(torch.load(weights))
         return net
+
+    def build_multiview_audiofeat(self, audio_shape=[2,257,121], weights=''):
+        net = SimpleAudioMultiviewFeatDepthNet(128, audio_shape=audio_shape, audio_feature_length=512)
+        net.apply(weights_init)
+        if len(weights) > 0:
+            print('Loading weights for audio stream')
+            net.load_state_dict(torch.load(weights))
+        return net
+
+    def build_multiview_audiodepth(self, audio_shape=[2,257,121], weights=''):
+        net = SimpleAudioMultiviewDepthNet(128, audio_shape=audio_shape, audio_feature_length=512)
+        net.apply(weights_init)
+        if len(weights) > 0:
+            print('Loading weights for audio stream')
+            net.load_state_dict(torch.load(weights))
+        return net
+
+
+    # builder for audio stream
+    def build_5layer_audiodepth(self, audio_shape=[2,257,121], weights=''):
+        net = Simple5LayerAudioDepthNet(64, audio_shape=audio_shape, audio_feature_length=512)
+        net.apply(weights_init)
+        if len(weights) > 0:
+            print('Loading weights for audio stream')
+            net.load_state_dict(torch.load(weights))
+        return net
+
+    # builder for waveform-version fo audio stream network
+    def build_waveformaudiodepth(self, audio_shape=[2, 2646], use_sincnet=False, weights=''):
+        net = WaveformAudioDepthNet(8, audio_shape=audio_shape, audio_feature_length=512, use_sincnet=use_sincnet)
+        # net.apply(weights_init) #TODO: Check if we need this or not, might have negative effects for waveform
+        if len(weights) > 0:
+            print('Loading weights for audio stream')
+            net.load_state_dict(torch.load(weights))
+        return net
+
+    def build_sincnet(self):
+        raise NotImplementedError
 
     #builder for visual stream
     def build_rgbdepth(self, ngf=64, input_nc=3, output_nc=1, weights=''):

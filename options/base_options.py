@@ -16,13 +16,30 @@ class BaseOptions():
 		self.parser.add_argument('--audio_path', type=str, default= '/data1/kranti/audio-visual-depth/dataset/visual_echoes/echoes/mp3d/echoes_navigable', help='path to the folder that contains echo responses')
 		self.parser.add_argument('--checkpoints_dir', type=str, default= '', help='path to save checkpoints')
 		self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
-		self.parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
-		self.parser.add_argument('--nThreads', default=8, type=int, help='# threads for loading data')
+		self.parser.add_argument('--batchSize', type=int, default=256, help='input batch size')
+		self.parser.add_argument('--nThreads', default=48, type=int, help='# threads for loading data')
 		self.parser.add_argument('--audio_length', default=0.06, type=float, help='audio length, default 0.06s')
 		self.parser.add_argument('--audio_normalize', type=bool, default=False, help='whether to normalize the audio')
 		self.parser.add_argument('--image_transform', type=bool, default=True, help='whether to transform the image data')
 		self.parser.add_argument('--image_resolution', default=128, type=int, help='the resolution of image for cropping')
 		self.parser.add_argument('--dataset', default='mp3d', type=str, help='replica/mp3d')
+		self.parser.add_argument('--name', default=None, type=str)
+		self.parser.add_argument('--nowandb', action='store_true')
+
+		self.parser.add_argument('--waveformaudio', action='store_true')
+		self.parser.add_argument('--use_sincnet', action='store_true')
+		self.parser.add_argument('--fivelayeraudio', action='store_true')
+
+		self.parser.add_argument('--pyramidattention', action='store_true')
+		self.parser.add_argument('--pyramidaudiodepth', action='store_true')
+
+		self.parser.add_argument('--audio_only_spec', action='store_true')
+		self.parser.add_argument('--audio_only_waveform', action='store_true')
+		self.parser.add_argument('--audio_only_sincnet', action='store_true')
+
+
+		self.parser.add_argument('--semanticpyramid', action='store_true')
+		self.parser.add_argument('--multiview', action='store_true')
 		## scratch was added after one step of training done with material property initialization
 		self.initialized = True
 
@@ -67,6 +84,9 @@ class BaseOptions():
 			'frl_apartment_4', 'office_0', 'office_1', 'office_2', 'office_3', 
 			'hotel_0', 'room_0', 'room_1', 'room_2']
 			self.opt.scenes['test'] = ['apartment_2', 'frl_apartment_5', 'office_4']
+
+		if self.opt.waveformaudio or self.opt.audio_only_waveform:
+			self.opt.audio_shape = [2, 2646]
 			
 
 		str_ids = self.opt.gpu_ids.split(',')

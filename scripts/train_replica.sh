@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=$1 python3 train.py --img_path ~/datasets/replica-visualechoes/scene_observations_semantic_128.pkl --audio_path ~/datasets/replica-visualechoes/echoes_navigable/ --checkpoints_dir checkpoints/ --dataset replica --validation_on --init_material_weight author_checkpoints/material_pre_trained_minc.pth
