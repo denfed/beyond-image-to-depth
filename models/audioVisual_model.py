@@ -6,6 +6,10 @@ import torch.nn.functional as F
 from . import networks,criterion
 from torch.autograd import Variable
 import torch.nn as nn
+import soundfile as sf
+import librosa
+import torchaudio
+from .wavegan_model import *
 
 class AudioVisualModel(torch.nn.Module):
     def name(self):
@@ -306,4 +310,178 @@ class AudioVisualMultiviewModel(torch.nn.Module):
                     'audio': audio_input,
                     'depth_gt': depth_gt}
 
+        return output
+
+
+class AudioVisualOnTheFlyModel(torch.nn.Module):
+    def name(self):
+        return 'AudioVisualOnTheFlyModel'
+
+    def __init__(self, nets, opt, use_generator=True):
+        super(AudioVisualOnTheFlyModel, self).__init__()
+        self.opt = opt
+        #initialize model
+        self.net_rgbdepth, self.net_audio, self.net_attention, self.net_material = nets
+
+        # Initialize audio "chirp" here and register as buffer within model
+        sig, fs = sf.read("/home/dcfedori/VisualEchoes/data/sweep_audio/3ms_sweep.wav", dtype='int16')
+        sig = sig/32768
+        sig = librosa.util.fix_length(sig, 44100)
+        sig_t = torch.Tensor(sig).repeat(2,1).unsqueeze(0).float()
+
+        # register audio chirp to be part of the model
+        self.register_buffer("audio_chirp", sig_t)
+        # self.audio_chirp = nn.Parameter(sig_t)
+
+        self.rir_len = 44100
+
+        self.spec_gen = torchaudio.transforms.Spectrogram(n_fft=512, win_length=64, hop_length=16, power=1)
+
+        self.useful_audio_len = int(self.opt.audio_sampling_rate * self.opt.audio_length)
+        print("Using", self.useful_audio_len, "samples for spectrogram generation.")
+
+        self.use_generator = use_generator
+
+        if self.use_generator:
+            self.audio_gen = WaveGANGenerator(
+                verbose=False, latent_dim=512, upsample=True, use_batch_norm=True, slice_len=65536
+            )
+
+            self.img_feat_avg = nn.AdaptiveAvgPool2d((1,1))
+
+    def forward(self, input, volatile=False):
+        rgb_input = input['img']
+        rir_input = input['rir'].float()
+        depth_gt = input['depth']
+
+        # print("rir input", rir_input.shape)
+
+        # Get image features here and pass into generator, if we are using it
+        img_depth, img_feat = self.net_rgbdepth(rgb_input)
+
+        if self.use_generator:
+            # print("image features", img_feat.shape)
+            img_feat_audiogen = self.img_feat_avg(img_feat).squeeze(3).squeeze(2)
+            # print("image features after global avg pool", img_feat_audiogen.shape)
+
+            audio_chirps = self.audio_gen(img_feat_audiogen)
+            audio_chirps = audio_chirps[:, :, :self.rir_len]
+            audio_chirps = audio_chirps.repeat(1,2,1)
+
+            print("generated chirps", audio_chirps, audio_chirps.shape)
+            # input data [B x 2 x 44100]
+
+
+        # Do the RIR convolution and spectrogram generation here, then pass into the orignal net_audio
+        # RIR shape: [B x 2 x 44100]
+        rir_input = rir_input.unsqueeze(2)
+        # RIR shape: [B x 2 x 1 x 44100]
+
+        # print("audio chirp size", self.audio_chirp.shape)
+
+        # Loop through and create RIR convolutions
+        outputs = []
+        for i in range(rir_input.shape[0]):
+            rir_i = rir_input[i]
+            audio_chirp_i = audio_chirps[i].unsqueeze(0)
+            # print(rir_i.shape, audio_chirp_i.shape, "LOOK HERE")
+            # validate that we dont need to clone self.audio_chirp or anything like that
+            output = F.conv1d(audio_chirp_i, rir_i.flip(2), padding=self.rir_len-1, groups=2)
+            output = output[:, :, :self.rir_len]
+            outputs.append(output)
+
+        outputs = torch.stack(outputs)
+        outputs = outputs.squeeze(1)
+        outputs = outputs[:, :, :self.useful_audio_len]
+        # print("OUTPUTS SHAPE", outputs.shape)
+
+        audio_input = self.spec_gen(outputs)
+
+        # print("spectrograms", audio_input.shape)
+
+        # print(self.audio_chirp, self.audio_chirp.grad)
+
+        audio_depth, audio_feat = self.net_audio(audio_input)
+        # print(audio_depth.shape, audio_feat.shape)
+        
+        material_class, material_feat = self.net_material(rgb_input)
+        audio_feat = audio_feat.repeat(1, 1, img_feat.shape[-2], img_feat.shape[-1]) #tile audio feature
+        alpha, _ = self.net_attention(img_feat, audio_feat, material_feat)
+        depth_prediction = ((alpha*audio_depth)+((1-alpha)*img_depth)) 
+
+        
+        output =  {'img_depth': img_depth * self.opt.max_depth,
+                    'audio_depth': audio_depth * self.opt.max_depth,
+                    'depth_predicted': depth_prediction * self.opt.max_depth, 
+                    'attention': alpha,
+                    'img': rgb_input,
+                    'audio': audio_input,
+                    'depth_gt': depth_gt}
+
+
+        return output
+
+
+class AudioOnlyOnTheFlyModel(torch.nn.Module):
+    def name(self):
+        return 'AudioOnlyOnTheFlyModel'
+
+    def __init__(self, nets, opt):
+        super(AudioOnlyOnTheFlyModel, self).__init__()
+        self.opt = opt
+
+        self.net_audio = nets
+
+        # Initialize audio "chirp" here and register as buffer within model
+        # sig, fs = sf.read("/home/dcfedori/VisualEchoes/data/sweep_audio/3ms_sweep.wav", dtype='int16')
+        # sig = sig/32768
+        # sig = librosa.util.fix_length(sig, 44100)
+        # sig_t = torch.Tensor(sig).repeat(2,1).unsqueeze(0).float()
+        sig_t = torch.zeros((1,2,44100)).float()
+
+        # register audio chirp to be part of the model
+        self.register_buffer("audio_chirp", sig_t)
+        # self.audio_chirp = nn.Parameter(sig_t)
+
+        self.rir_len = 44100
+
+        self.spec_gen = torchaudio.transforms.Spectrogram(n_fft=512, win_length=64, hop_length=16, power=1)
+
+        self.useful_audio_len = int(self.opt.audio_sampling_rate * self.opt.audio_length)
+        print("Using", self.useful_audio_len, "samples for spectrogram generation.")
+
+    def forward(self, input, volatile=False):
+        rgb_input = input['img']
+        rir_input = input['rir'].float()
+        depth_gt = input['depth']
+
+        # Do the RIR convolution and spectrogram generation here, then pass into the orignal net_audio
+        # RIR shape: [B x 2 x 44100]
+        rir_input = rir_input.unsqueeze(2)
+        # RIR shape: [B x 2 x 1 x 44100]
+
+        # Loop through and create RIR convolutions
+        outputs = []
+        for i in range(rir_input.shape[0]):
+            rir_i = rir_input[i]
+            # validate that we dont need to clone self.audio_chirp or anything like that
+            output = F.conv1d(self.audio_chirp, rir_i.flip(2), padding=self.rir_len-1, groups=2)
+            output = output[:, :, :self.rir_len]
+            outputs.append(output)
+
+        outputs = torch.stack(outputs)
+        outputs = outputs.squeeze(1)
+        outputs = outputs[:, :, :self.useful_audio_len]
+        # print("OUTPUTS SHAPE", outputs.shape)
+
+        audio_input = self.spec_gen(outputs)
+
+        # Add the model stuff here
+        depth_prediction, _ = self.net_audio(audio_input)
+
+        output = {'depth_predicted': depth_prediction * self.opt.max_depth,
+                  'img': rgb_input,
+                  'audio': audio_input,
+                  'depth_gt': depth_gt}
+        
         return output

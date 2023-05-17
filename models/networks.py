@@ -511,13 +511,13 @@ class SimpleAudioDepthNet(nn.Module):
         return tuple(out_dimension)
 
     def forward(self, x):
-        print("audio shape before feature", x.shape)
+        # print("audio shape before feature", x.shape)
         x = self.feature_extraction(x)
-        print("audio shape after feature", x.shape)
+        # print("audio shape after feature", x.shape)
         x = x.view(x.shape[0], -1, 1, 1)
-        print("audio shape after view", x.shape)
+        # print("audio shape after view", x.shape)
         x = self.conv1x1(x)
-        print("audio shape 1x1", x.shape)
+        # print("audio shape 1x1", x.shape)
         
         audio_feat = x
         

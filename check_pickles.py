@@ -41,7 +41,7 @@ if __name__ == "__main__":
     and see what is coming out of the soundspaces cache_observations.py.
     """
 
-    with open("/home/cendue/dcfedori/datasets/replica-visualechoes/scene_observations_128.pkl", 'rb') as f:
+    with open("/data/sound-spaces/replica-visualechoes/scene_observations_128.pkl", 'rb') as f:
         obj1 = pickle.load(f)
 
     # print(obj)
@@ -54,8 +54,8 @@ if __name__ == "__main__":
 
     # print("--------------DONE-----------------------")
 
-    # with open("/home/cendue/dcfedori/sound-spaces/data/scene_observations/replica/apartment_0.pkl", 'rb') as f:
-    #     obj2 = pickle.load(f)
+    with open("/home/dcfedori/sound-spaces/data/scene_observations/replica/apartment_0.pkl", 'rb') as f:
+        obj2 = pickle.load(f)
 
 
     # for i in obj1['apartment_0'].keys():
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     dataset = {}
 
-    directory = "/home/cendue/dcfedori/sound-spaces/data/scene_observations/replica/"
+    directory = "/home/dcfedori/sound-spaces/data/scene_observations/replica/"
     for filename in os.listdir(directory):
         f = os.path.join(directory, filename)
         # # checking if it is a file

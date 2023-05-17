@@ -16,7 +16,7 @@ class BaseOptions():
 		self.parser.add_argument('--audio_path', type=str, default= '/data1/kranti/audio-visual-depth/dataset/visual_echoes/echoes/mp3d/echoes_navigable', help='path to the folder that contains echo responses')
 		self.parser.add_argument('--checkpoints_dir', type=str, default= '', help='path to save checkpoints')
 		self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
-		self.parser.add_argument('--batchSize', type=int, default=256, help='input batch size')
+		self.parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
 		self.parser.add_argument('--nThreads', default=48, type=int, help='# threads for loading data')
 		self.parser.add_argument('--audio_length', default=0.06, type=float, help='audio length, default 0.06s')
 		self.parser.add_argument('--audio_normalize', type=bool, default=False, help='whether to normalize the audio')
@@ -36,6 +36,8 @@ class BaseOptions():
 		self.parser.add_argument('--audio_only_spec', action='store_true')
 		self.parser.add_argument('--audio_only_waveform', action='store_true')
 		self.parser.add_argument('--audio_only_sincnet', action='store_true')
+
+		self.parser.add_argument('--onthefly', action='store_true')
 
 
 		self.parser.add_argument('--semanticpyramid', action='store_true')
@@ -79,6 +81,7 @@ class BaseOptions():
 			self.opt.audio_shape = [2,257,166]
 			self.opt.audio_sampling_rate = 44100
 			self.opt.max_depth = 14.104
+			# self.opt.max_depth = 10.0
 			self.opt.scenes['train'] = ['apartment_0', 'apartment_1', 
 			'frl_apartment_0', 'frl_apartment_1', 'frl_apartment_2', 'frl_apartment_3',
 			'frl_apartment_4', 'office_0', 'office_1', 'office_2', 'office_3', 

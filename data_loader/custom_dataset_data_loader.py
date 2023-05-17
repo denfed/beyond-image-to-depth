@@ -4,7 +4,7 @@ import torch.utils.data
 
 def CreateDataset(opt):
     dataset = None
-    from data_loader.audio_visual_dataset import AudioVisualDataset, WaveformAudioVisualDataset, SemanticAudioVisualDataset, MultiviewAudioVisualDataset
+    from data_loader.audio_visual_dataset import AudioVisualDataset, WaveformAudioVisualDataset, SemanticAudioVisualDataset, MultiviewAudioVisualDataset, AudioVisualOnTheFlyDataset
 
     if opt.waveformaudio or opt.audio_only_waveform:
         dataset = WaveformAudioVisualDataset()
@@ -15,6 +15,9 @@ def CreateDataset(opt):
     elif opt.multiview:
         dataset = MultiviewAudioVisualDataset()
         print("Using multiview dataset.")
+    elif opt.onthefly:
+        dataset = AudioVisualOnTheFlyDataset()
+        print("Using on-the-fly dataset, returning RIRs instead of spectrograms.")
     else:
         dataset = AudioVisualDataset()
         # dataset = MultiviewAudioVisualDataset()

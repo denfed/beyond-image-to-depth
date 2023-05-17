@@ -3,7 +3,8 @@ import time
 import torch
 from options.train_options import TrainOptions
 from models.models import ModelBuilder
-from models.audioVisual_model import AudioVisualModel, AudioVisualPyramidAttentionModel, AudioVisualPyramidAttentionAudioDepthModel, AudioOnlyModel, SemanticPyramidModel, AudioVisualMultiviewModel
+from models.audioVisual_model import AudioVisualModel, AudioVisualPyramidAttentionModel, AudioVisualPyramidAttentionAudioDepthModel \
+, AudioOnlyModel, SemanticPyramidModel, AudioVisualMultiviewModel, AudioVisualOnTheFlyModel, AudioOnlyOnTheFlyModel
 from data_loader.custom_dataset_data_loader import CustomDatasetDataLoader
 from util.util import TextWrite, compute_errors
 import numpy as np
@@ -24,7 +25,7 @@ def create_optimizer(nets, opt):
 	elif opt.semanticpyramid:
 		param_groups = [{'params': nets.parameters(), 'lr': opt.lr_visual}]
 	elif opt.multiview:
-		(net_visualdepth, net_audiofeat, net_audiodepth, net_attention, net_material) = nets
+		(net_rgbdepth, net_audiofeat, net_audiodepth, net_attention, net_material) = nets
 		param_groups = [{'params': net_rgbdepth.parameters(), 'lr': opt.lr_visual},
 						{'params': net_audiofeat.parameters(), 'lr': opt.lr_audio}, 
 						{'params': net_audiodepth.parameters(), 'lr': opt.lr_audio},
@@ -32,12 +33,15 @@ def create_optimizer(nets, opt):
 						{'params': net_material.parameters(), 'lr': opt.lr_material}
 						]
 	else:
-		(net_visualdepth, net_audiodepth, net_attention, net_material) = nets
-		param_groups = [{'params': net_rgbdepth.parameters(), 'lr': opt.lr_visual},
-						{'params': net_audiodepth.parameters(), 'lr': opt.lr_audio},
-						{'params': net_attention.parameters(), 'lr': opt.lr_attention},
-						{'params': net_material.parameters(), 'lr': opt.lr_material}
-						]
+		print("Using original optimizer structure")
+		# (net_rgbdepth, net_audiodepth, net_attention, net_material, net_model) = nets
+		# param_groups = [{'params': net_rgbdepth.parameters(), 'lr': opt.lr_visual},
+		# 				{'params': net_audiodepth.parameters(), 'lr': opt.lr_audio},
+		# 				{'params': net_attention.parameters(), 'lr': opt.lr_attention},
+		# 				{'params': net_material.parameters(), 'lr': opt.lr_material},
+		# 				{'params': net_model.parameters(), 'lr': opt.lr_visual}
+		# 				]
+		param_groups = [{'params': nets.parameters(), 'lr': opt.lr_visual}]
 	if opt.optimizer == 'sgd':
 		return torch.optim.SGD(param_groups, momentum=opt.beta1, weight_decay=opt.weight_decay)
 	elif opt.optimizer == 'adam':
@@ -132,6 +136,30 @@ elif opt.pyramidaudiodepth:
 	model = torch.nn.DataParallel(model, device_ids=opt.gpu_ids)
 	model.to(opt.device)
 
+elif opt.onthefly:
+	"""
+	On the fly RIR convolution and mel spectrogram generation.
+	"""
+	if opt.audio_only_spec: 
+		net_audio = builder.build_audiodepth(opt.audio_shape)
+
+		nets = net_audio
+
+		model = AudioOnlyOnTheFlyModel(nets, opt)
+		model = torch.nn.DataParallel(model, device_ids=opt.gpu_ids)
+		model.to(opt.device)
+	else:
+		net_audiodepth = builder.build_audiodepth(opt.audio_shape)
+		net_rgbdepth = builder.build_rgbdepth()
+		net_attention = builder.build_attention()
+		net_material = builder.build_material_property(init_weights=opt.init_material_weight)
+
+		nets = (net_rgbdepth, net_audiodepth, net_attention, net_material)
+
+		model = AudioVisualOnTheFlyModel(nets, opt)
+		model = torch.nn.DataParallel(model, device_ids=opt.gpu_ids)
+		model.to(opt.device)
+
 elif opt.audio_only_waveform:
 	net_audio = builder.build_waveformaudiodepth(opt.audio_shape, use_sincnet=opt.use_sincnet)
 
@@ -214,6 +242,9 @@ if opt.validation_on:
 	dataset_size_val = len(dataloader_val)
 	print('#validation clips = %d' % dataset_size_val)
 	opt.mode = 'train'
+
+# nets = (net_rgbdepth, net_audiodepth, net_attention, net_material, model)
+nets = model
 
 optimizer = create_optimizer(nets, opt)
 
